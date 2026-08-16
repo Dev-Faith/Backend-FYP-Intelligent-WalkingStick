@@ -1,0 +1,2 @@
+import { buildFallPush } from './push';
+describe('fall v2 push',()=>{it('preserves the Expo contract',()=>{const p=buildFallPush('ExponentPushToken[test]',{id:'fall-1',occurredAt:new Date('2026-08-15T10:42:15.311Z'),locationName:'Reported location',latitude:9.6139,longitude:6.5569,batteryLevel:78,contactName:'Amina Yusuf',contactPhone:'+2348012345678',severity:'critical'});expect(p.channelId).toBe('fall-alerts-v3');expect(p.data).toMatchObject({type:'FALL_ALERT',version:2,id:'fall-1',severity:'critical'});expect(Buffer.byteLength(JSON.stringify(p))).toBeLessThan(4096)})});

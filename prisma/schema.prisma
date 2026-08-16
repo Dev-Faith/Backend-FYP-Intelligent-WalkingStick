@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+enum DeviceRole {
+  owner
+  caregiver
+}
+enum FallSeverity {
+  high
+  critical
+}
+enum FallStatus {
+  open
+  acknowledged
+  resolved
+}
+enum Coverage {
+  complete
+  partial
+}
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  passwordHash String
+  onboardingComplete Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions AuthSession[]
+  access DeviceAccess[]
+  installations NotificationInstallation[]
+  transitions FallTransition[]
+}
+model AuthSession {
+  id String @id @default(uuid())
+  userId String
+  tokenHash String @unique
+  familyId String
+  expiresAt DateTime
+  revokedAt DateTime?
+  replacedByHash String?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, familyId])
+}
+model PasswordReset {
+  id String @id @default(uuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+}
+model Device {
+  id String @id @default(uuid())
+  hardwareId String @unique
+  displayName String @default("Wakatech walking stick")
+  credentialHash String?
+  claimedAt DateTime?
+  lastSeenAt DateTime?
+  batteryLevel Int?
+  wifiRssi Int?
+  firmwareVersion String?
+  protocolVersion Int?
+  latitude Float?
+  longitude Float?
+  accuracyMeters Float?
+  fixAt DateTime?
+  timezone String @default("Africa/Lagos")
+  sensitivity String @default("medium")
+  graceSeconds Int @default(30)
+  settingsVersion Int @default(1)
+  syncState String @default("unsupported")
+  access DeviceAccess[]
+  claims DeviceClaim[]
+  contact EmergencyContact?
+  falls FallEvent[]
+  checkpoints ActivityCheckpoint[]
+  daily DailyActivity[]
+  walks WalkSession[]
+  messages DeviceMessage[]
+}
+model DeviceClaim {
+  id String @id @default(uuid())
+  deviceId String
+  claimHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}
+model DeviceAccess {
+  userId String
+  deviceId String
+  role DeviceRole @default(owner)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@id([userId, deviceId])
+}
+model EmergencyContact {
+  id String @id @default(uuid())
+  deviceId String @unique
+  fullName String
+  phoneNumber String
+  relationship String?
+  updatedAt DateTime @updatedAt
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}
+model NotificationInstallation {
+  id String @id @default(uuid())
+  userId String
+  installationKey String
+  pushToken String
+  provider String
+  platform String
+  projectId String?
+  appVersion String?
+  permissionState String
+  enabled Boolean @default(true)
+  registeredAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, installationKey])
+  @@index([pushToken])
+}
+model FallEvent {
+  id String @id @default(uuid())
+  deviceId String
+  deviceEventId String
+  severity FallSeverity
+  status FallStatus @default(open)
+  occurredAt DateTime
+  receivedAt DateTime @default(now())
+  locationName String
+  latitude Float
+  longitude Float
+  accuracyMeters Float?
+  batteryLevel Int
+  contactName String
+  contactPhone String
+  acknowledgedAt DateTime?
+  resolvedAt DateTime?
+  resolution String?
+  dispatchRevision Int @default(1)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  transitions FallTransition[]
+  @@unique([deviceId, deviceEventId])
+  @@index([deviceId, occurredAt])
+}
+model FallTransition {
+  id String @id @default(uuid())
+  fallId String
+  userId String?
+  action String
+  occurredAt DateTime?
+  serverAt DateTime @default(now())
+  resolution String?
+  fall FallEvent @relation(fields: [fallId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+}
+model ActivityCheckpoint {
+  id String @id @default(uuid())
+  deviceId String
+  sampleId String
+  counterEpoch String
+  cumulativeSteps Int
+  occurredAt DateTime
+  receivedAt DateTime @default(now())
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([deviceId, sampleId])
+  @@index([deviceId, occurredAt])
+}
+model DailyActivity {
+  id String @id @default(uuid())
+  deviceId String
+  date String
+  steps Int
+  goal Int?
+  recordedThrough DateTime
+  coverage Coverage
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([deviceId, date])
+}
+model WalkSession {
+  id String @id @default(uuid())
+  deviceId String
+  externalId String
+  startedAt DateTime
+  endedAt DateTime?
+  steps Int
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([deviceId, externalId])
+}
+model DeviceMessage {
+  id String @id @default(uuid())
+  deviceId String
+  messageId String
+  eventType String
+  occurredAt DateTime
+  sequence BigInt
+  bootId String
+  receivedAt DateTime @default(now())
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([deviceId, messageId])
+}
+model Outbox {
+  id String @id @default(uuid())
+  topic String
+  aggregateId String
+  revision Int
+  payload Json
+  status String @default("pending")
+  attempts Int @default(0)
+  createdAt DateTime @default(now())
+  processedAt DateTime?
+  @@unique([topic, aggregateId, revision])
+}
+model AuditLog {
+  id String @id @default(uuid())
+  actorId String?
+  action String
+  resourceType String
+  resourceId String
+  metadata Json?
+  createdAt DateTime @default(now())
+}

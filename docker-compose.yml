@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: wakatech
+      POSTGRES_PASSWORD: wakatech
+      POSTGRES_DB: wakatech
+    ports: ["5432:5432"]
+    volumes: [wakatech_pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wakatech"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:8-alpine
+    ports: ["6379:6379"]
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes: ["./infra/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
+volumes:
+  wakatech_pg:
