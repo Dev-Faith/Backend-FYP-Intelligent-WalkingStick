@@ -24,7 +24,7 @@ import {
 } from "class-validator";
 import { PrismaService } from "../shared/prisma";
 import { Public } from "../shared/http";
-class Envelope {
+export class Envelope {
   @IsInt() @IsIn([1]) schemaVersion!: number;
   @IsString() @Length(3, 100) messageId!: string;
   @IsString() @Length(3, 80) deviceId!: string;
@@ -66,6 +66,18 @@ export class IngestService {
       key !== process.env.DEVICE_INGEST_KEY
     )
       throw new UnauthorizedException("Invalid device credentials.");
+    return this.process(d, e);
+  }
+
+  async ingestTrusted(hardwareId: string, e: Envelope) {
+    const device = await this.db.device.findUnique({ where: { hardwareId } });
+    if (!device || device.hardwareId !== e.deviceId) {
+      throw new UnauthorizedException("Invalid device identity.");
+    }
+    return this.process(device, e);
+  }
+
+  private async process(d: { id: string }, e: Envelope) {
     const prior = await this.db.deviceMessage.findUnique({
       where: { deviceId_messageId: { deviceId: d.id, messageId: e.messageId } },
     });
@@ -139,13 +151,13 @@ export class IngestService {
       x.batteryPercent > 100
     )
       throw new Error("Invalid fall payload");
-    const c = await tx.emergencyContact.findUnique({
+    const contact = await tx.emergencyContact.findUnique({
       where: { deviceId: did },
     });
-    if (!c)
-      throw new Error(
-        "A primary emergency contact is required before fall dispatch.",
-      );
+    const contactSnapshot = contact ?? {
+      fullName: "No emergency contact configured",
+      phoneNumber: "Not set",
+    };
     const old = await tx.fallEvent.findUnique({
       where: {
         deviceId_deviceEventId: { deviceId: did, deviceEventId: x.fallEventId },
@@ -179,8 +191,8 @@ export class IngestService {
         longitude: l.longitude,
         accuracyMeters: l.accuracyMeters,
         batteryLevel: x.batteryPercent,
-        contactName: c.fullName,
-        contactPhone: c.phoneNumber,
+        contactName: contactSnapshot.fullName,
+        contactPhone: contactSnapshot.phoneNumber,
       },
     });
     await tx.fallTransition.create({

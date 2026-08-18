@@ -123,6 +123,7 @@ model NotificationInstallation {
   enabled Boolean @default(true)
   registeredAt DateTime @default(now())
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dispatches PushDispatch[]
   @@unique([userId, installationKey])
   @@index([pushToken])
 }
@@ -147,8 +148,28 @@ model FallEvent {
   dispatchRevision Int @default(1)
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   transitions FallTransition[]
+  dispatches PushDispatch[]
   @@unique([deviceId, deviceEventId])
   @@index([deviceId, occurredAt])
+}
+model PushDispatch {
+  id String @id @default(uuid())
+  fallId String
+  installationId String
+  revision Int
+  ticketId String?
+  ticketStatus String @default("pending")
+  receiptStatus String?
+  errorCode String?
+  errorMessage String?
+  attempts Int @default(0)
+  createdAt DateTime @default(now())
+  ticketAt DateTime?
+  receiptAt DateTime?
+  fall FallEvent @relation(fields: [fallId], references: [id], onDelete: Cascade)
+  installation NotificationInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  @@unique([fallId, installationId, revision])
+  @@index([ticketId])
 }
 model FallTransition {
   id String @id @default(uuid())

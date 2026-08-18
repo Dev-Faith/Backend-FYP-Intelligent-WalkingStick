@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import mqtt from 'mqtt';
+import { signMqttEnvelope } from '../src/ingest/mqtt.service';
 
 const base = process.env.API_URL || 'http://localhost:3000/v1';
 const kind = process.argv[2] || 'heartbeat';
@@ -9,5 +11,21 @@ const bodies: Record<string, unknown> = {
   fall: { ...common, eventType: 'fall.opened', data: { fallEventId: `fall-${Date.now()}`, severity: 'critical', batteryPercent: 78, location: { latitude: 9.6139, longitude: 6.5569, accuracyMeters: 12.4, fixAt: now } } },
   activity: { ...common, eventType: 'activity.checkpoint', data: { sampleId: `steps-${Date.now()}`, counterEpoch: 'sim-epoch-1', cumulativeSteps: 1684 } },
 };
-if (!bodies[kind]) throw new Error('Use heartbeat, fall, or activity');
-fetch(`${base}/device-ingest/events`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-device-key': process.env.DEVICE_INGEST_KEY || 'local-device-key' }, body: JSON.stringify(bodies[kind]) }).then(async r => { console.log(r.status, await r.text()); if (!r.ok) process.exitCode = 1; });
+const mqttKind = kind.startsWith('mqtt-') ? kind.slice(5) : null;
+const event = bodies[mqttKind || kind];
+if (!event) throw new Error('Use heartbeat, fall, activity, mqtt-heartbeat, mqtt-fall, or mqtt-activity');
+
+if (mqttKind) {
+  const secret = process.env.SEEDED_DEVICE_SECRET;
+  if (!secret) throw new Error('SEEDED_DEVICE_SECRET is required for MQTT simulation');
+  const suffix = mqttKind === 'heartbeat' ? 'telemetry/heartbeat' : `events/${mqttKind}`;
+  const client = mqtt.connect(process.env.MQTT_URL || 'mqtt://localhost:1883');
+  client.on('connect', () => client.publish(`wakatech/v1/devices/WK-2026-000042/${suffix}`, JSON.stringify(signMqttEnvelope(secret, event as object)), { qos: 1 }, (error) => {
+    if (error) { console.error(error); process.exitCode = 1; }
+    else console.log(`Published authenticated ${mqttKind} event over MQTT`);
+    client.end();
+  }));
+  client.on('error', (error) => { console.error(error); process.exitCode = 1; client.end(); });
+} else {
+  fetch(`${base}/device-ingest/events`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-device-key': process.env.DEVICE_INGEST_KEY || 'local-device-key' }, body: JSON.stringify(event) }).then(async r => { console.log(r.status, await r.text()); if (!r.ok) process.exitCode = 1; });
+}
