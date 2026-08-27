@@ -33,6 +33,7 @@ export class Envelope {
     "device.heartbeat",
     "activity.checkpoint",
     "walk-session.completed",
+    "settings.applied",
   ])
   eventType!: string;
   @IsDateString() occurredAt!: string;
@@ -132,6 +133,33 @@ export class IngestService {
             steps: x.steps,
           },
         });
+      }
+      if (e.eventType === "settings.applied") {
+        const x = e.data;
+        if (
+          !Number.isInteger(x.version) ||
+          !["applied", "rejected"].includes(x.status)
+        )
+          throw new Error("Invalid settings acknowledgement");
+        const current = await tx.device.findUnique({ where: { id: d.id } });
+        if (
+          current &&
+          current.syncState === "pending" &&
+          x.version === current.settingsVersion
+        ) {
+          await tx.device.update({
+            where: { id: d.id },
+            data: { syncState: x.status === "applied" ? "synced" : "failed" },
+          });
+          await tx.auditLog.create({
+            data: {
+              action: `settings.${x.status}`,
+              resourceType: "device",
+              resourceId: d.id,
+              metadata: { version: x.version, errorCode: x.errorCode ?? null },
+            },
+          });
+        }
       }
       return { accepted: true, duplicate: false };
     });

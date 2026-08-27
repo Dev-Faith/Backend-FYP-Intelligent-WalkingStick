@@ -258,7 +258,13 @@ npm run simulator -- fall
 npm run simulator -- mqtt-heartbeat
 npm run simulator -- mqtt-activity
 npm run simulator -- mqtt-fall
+npm run simulator:settings
 ```
+
+`simulator:settings` behaves like the Raspberry Pi: it subscribes to the retained
+settings command, verifies the backend HMAC, applies the command and publishes a
+signed `settings.applied` acknowledgement. See
+[`docs/RASPBERRY_PI_MQTT.md`](docs/RASPBERRY_PI_MQTT.md) for the hardware contract.
 
 Each successful ingest returns HTTP `202`:
 

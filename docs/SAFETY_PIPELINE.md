@@ -96,6 +96,20 @@ npm run simulator -- mqtt-activity
 npm run simulator -- mqtt-fall
 ```
 
+## Settings downlink
+
+When a caregiver updates safety settings, the backend increments the settings
+version, marks the device `pending`, and publishes a retained QoS-1 command on
+`wakatech/v1/devices/{hardwareId}/commands/settings`. Retention ensures an offline
+stick receives the latest command after reconnecting. The command is HMAC-signed
+with the device credential hash.
+
+The stick validates the signature and identity, persists the new settings, then
+publishes an authenticated `settings.applied` envelope on
+`wakatech/v1/devices/{hardwareId}/events/settings-applied`. Only an acknowledgement
+matching the current version changes `deviceSyncState` to `synced`; stale replies
+cannot acknowledge newer settings. A device rejection changes it to `failed`.
+
 Falls are persisted even when setup is incomplete. Without a primary contact, the event snapshots `No emergency contact configured` / `Not set` rather than discarding a safety event. Actual push delivery requires an enabled Expo installation registered through `POST /v1/notification-installations`.
 
 ## Production gaps

@@ -30,6 +30,7 @@ import {
 import { createHash } from "crypto";
 import { PrismaService } from "../shared/prisma";
 import { JwtGuard } from "../shared/http";
+import { MqttIngestService } from "../ingest/mqtt.service";
 class ClaimDto {
   @IsString() @Length(4, 64) claimCode!: string;
   @IsString() @Length(3, 80) hardwareId!: string;
@@ -118,7 +119,11 @@ export class DevicesController {
 }
 @Injectable()
 export class DevicesService {
-  constructor(private db: PrismaService) {}
+  constructor(
+    private db: PrismaService,
+    @Inject(forwardRef(() => MqttIngestService))
+    private readonly mqtt: MqttIngestService,
+  ) {}
   async access(uid: string, id: string) {
     const a = await this.db.deviceAccess.findUnique({
       where: { userId_deviceId: { userId: uid, deviceId: id } },
@@ -299,6 +304,11 @@ export class DevicesService {
         syncState: "pending",
       },
     });
+    try {
+      await this.mqtt.publishSettings(n);
+    } catch {
+      // The durable pending state is republished automatically when MQTT reconnects.
+    }
     return {
       fallSensitivity: n.sensitivity,
       falseAlarmGraceSeconds: n.graceSeconds,
