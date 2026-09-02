@@ -133,16 +133,57 @@ export class DevicesService {
     return a;
   }
   async claim(uid: string, b: ClaimDto) {
+    const hardwareId = b.hardwareId.trim().toUpperCase();
     const d = await this.db.device.findUnique({
-      where: { hardwareId: b.hardwareId },
+      where: { hardwareId },
       include: { claims: true },
     });
-    const c = d?.claims.find(
-      (x) =>
-        x.claimHash === dig(b.claimCode) &&
-        !x.usedAt &&
-        x.expiresAt > new Date(),
+    const matchingClaim = d?.claims.find(
+      (x) => x.claimHash === dig(b.claimCode),
     );
+    const demoClaiming = process.env.DEMO_DEVICE_CLAIMING === "true";
+
+    // Presentation mode deliberately makes the seeded demo device shareable.
+    // A matching claim proof is still required; arbitrary codes remain invalid.
+    // Never enable this flag for a real production rollout.
+    if (demoClaiming && d && matchingClaim) {
+      const now = new Date();
+      const claimedAt = d.claimedAt ?? now;
+      await this.db.$transaction([
+        this.db.device.update({
+          where: { id: d.id },
+          data: { claimedAt },
+        }),
+        this.db.deviceAccess.upsert({
+          where: { userId_deviceId: { userId: uid, deviceId: d.id } },
+          create: { userId: uid, deviceId: d.id, role: "owner" },
+          update: { role: "owner" },
+        }),
+        this.db.auditLog.create({
+          data: {
+            actorId: uid,
+            action: "device.demo_access_granted",
+            resourceType: "device",
+            resourceId: d.id,
+            metadata: { presentationMode: true },
+          },
+        }),
+      ]);
+      return {
+        device: {
+          id: d.id,
+          hardwareId: d.hardwareId,
+          displayName: d.displayName,
+          claimedAt: claimedAt.toISOString(),
+        },
+      };
+    }
+
+    const c = matchingClaim &&
+      !matchingClaim.usedAt &&
+      matchingClaim.expiresAt > new Date()
+      ? matchingClaim
+      : undefined;
     if (!d || !c || d.claimedAt)
       throw new ConflictException(
         "This claim code is invalid, expired, or already used.",

@@ -180,6 +180,13 @@ NTP with `sudo timedatectl set-ntp true`.
 
 Python reference:
 
+The complete executable reference is
+[`raspberry_pi_hivemq_example.py`](raspberry_pi_hivemq_example.py). It includes
+TLS, authentication, QoS 1 delivery, durable offline queuing, reconnect backoff,
+event validation, signed settings commands, atomic settings persistence,
+diagnostics and graceful shutdown. The smaller excerpt below only demonstrates
+the signing algorithm.
+
 ```python
 import hashlib, hmac, json
 from datetime import datetime, timezone

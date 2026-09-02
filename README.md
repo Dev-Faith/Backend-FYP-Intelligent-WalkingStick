@@ -232,6 +232,12 @@ $claim
 
 Claim codes are one-time. Reusing the seeded database after a successful claim will correctly return `409 Conflict`.
 
+For a supervised presentation only, setting `DEMO_DEVICE_CLAIMING=true` permits
+multiple accounts to claim the same seeded demo device with its valid claim
+code. The hardware ID and claim code are still verified. Keep this flag unset or
+`false` for real deployments because presentation mode intentionally creates
+multiple owners for one device.
+
 ### Save the primary contact
 
 ```powershell

@@ -19,7 +19,10 @@ if (mqttKind) {
   const secret = process.env.SEEDED_DEVICE_SECRET;
   if (!secret) throw new Error('SEEDED_DEVICE_SECRET is required for MQTT simulation');
   const suffix = mqttKind === 'heartbeat' ? 'telemetry/heartbeat' : `events/${mqttKind}`;
-  const client = mqtt.connect(process.env.MQTT_URL || 'mqtt://localhost:1883');
+  const client = mqtt.connect(process.env.MQTT_URL || 'mqtt://localhost:1883', {
+    username: process.env.MQTT_USERNAME || undefined,
+    password: process.env.MQTT_PASSWORD || undefined,
+  });
   client.on('connect', () => client.publish(`wakatech/v1/devices/WK-2026-000042/${suffix}`, JSON.stringify(signMqttEnvelope(secret, event as object)), { qos: 1 }, (error) => {
     if (error) { console.error(error); process.exitCode = 1; }
     else console.log(`Published authenticated ${mqttKind} event over MQTT`);

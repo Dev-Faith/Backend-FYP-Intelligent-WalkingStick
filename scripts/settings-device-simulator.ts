@@ -9,7 +9,10 @@ if (!secret) throw new Error("SEEDED_DEVICE_SECRET is required");
 const credentialHash = createHash("sha256").update(secret).digest("hex");
 const commandTopic = `wakatech/v1/devices/${hardwareId}/commands/settings`;
 const acknowledgementTopic = `wakatech/v1/devices/${hardwareId}/events/settings-applied`;
-const client = mqtt.connect(process.env.MQTT_URL || "mqtt://localhost:1883");
+const client = mqtt.connect(process.env.MQTT_URL || "mqtt://localhost:1883", {
+  username: process.env.MQTT_USERNAME || undefined,
+  password: process.env.MQTT_PASSWORD || undefined,
+});
 const timer = setTimeout(() => {
   console.error("No retained settings command arrived within 15 seconds");
   process.exitCode = 1;
